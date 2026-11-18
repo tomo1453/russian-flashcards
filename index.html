@@ -4,11 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ロシア語単語帳</title>
-  <meta name="description" content="旅行用ロシア語フラッシュカード（間隔反復・音声読み上げ付き）">
-  <meta name="theme-color" content="#0f3d5e">
+  <meta name="theme-color" content="#fff7ec">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="露単語">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
@@ -16,124 +15,31 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1>Слова́рь <span>ロシア語単語帳</span></h1>
-  </header>
-
   <main>
-    <!-- ホーム -->
-    <section id="view-home" class="view active">
-      <div class="seg" role="tablist" aria-label="出題方向">
-        <button data-dir="ru2ja">露 → 日</button>
-        <button data-dir="ja2ru">日 → 露</button>
-      </div>
-
-      <div class="stats">
-        <div class="stat"><b id="st-due">0</b><span>今日の復習</span></div>
-        <div class="stat"><b id="st-new">0</b><span>新しい単語</span></div>
-        <div class="stat"><b id="st-learned">0</b><span>学習済み</span></div>
-      </div>
-
-      <button id="btn-start" class="primary big">学習を始める</button>
-      <p id="home-msg" class="muted center"></p>
-
-      <h2>カテゴリ</h2>
-      <div id="cats" class="chips"></div>
-
-      <button id="btn-cram" class="ghost">自由練習（記録しないでランダム出題）</button>
-    </section>
-
-    <!-- 学習 -->
-    <section id="view-study" class="view">
-      <div class="study-head">
-        <button id="btn-quit" class="link">✕ 終了</button>
-        <div class="progress"><div id="progress-bar"></div></div>
-        <span id="progress-text" class="muted">0/0</span>
-      </div>
-
-      <div id="card" class="card" tabindex="0">
-        <span id="card-cat" class="card-cat"></span>
-        <div id="card-front" class="card-front"></div>
-        <div id="card-back" class="card-back" hidden></div>
-        <p id="card-hint" class="card-hint">タップして答えを表示</p>
-      </div>
-
-      <div id="grades" class="grades" hidden>
-        <button data-grade="again" class="g-again"><b>忘れた</b><small></small></button>
-        <button data-grade="hard" class="g-hard"><b>あいまい</b><small></small></button>
-        <button data-grade="good" class="g-good"><b>覚えた</b><small></small></button>
-      </div>
-    </section>
-
-    <!-- 完了 -->
-    <section id="view-done" class="view">
-      <div class="done">
-        <div class="done-mark">Молоде́ц!</div>
-        <p>よくできました</p>
-        <div class="stats">
-          <div class="stat"><b id="dn-good">0</b><span>覚えた</span></div>
-          <div class="stat"><b id="dn-hard">0</b><span>あいまい</span></div>
-          <div class="stat"><b id="dn-again">0</b><span>忘れた</span></div>
+    <div id="stage" class="stage">
+      <div id="card" class="card" role="button" tabindex="0" aria-label="タップして裏返す">
+        <div class="face front">
+          <button class="speak" aria-label="読み上げ">🔊</button>
+          <div id="ru" class="ru"></div>
+          <p class="hint">タップして裏返す</p>
         </div>
-        <button id="btn-done" class="primary big">ホームへ</button>
+        <div class="face back">
+          <button class="speak" aria-label="読み上げ">🔊</button>
+          <div id="ru-small" class="ru-small"></div>
+          <div id="ja" class="ja"></div>
+          <div id="example" class="example">
+            <div id="ex-ru" class="ex-ru"></div>
+            <div id="ex-ja" class="ex-ja"></div>
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
 
-    <!-- 単語一覧 -->
-    <section id="view-list" class="view">
-      <div class="list-tools">
-        <input id="search" type="search" placeholder="検索（ロシア語・日本語）" autocomplete="off">
-        <select id="list-cat"></select>
-      </div>
-      <p id="list-count" class="muted"></p>
-      <ul id="word-list" class="word-list"></ul>
-    </section>
-
-    <!-- 設定 -->
-    <section id="view-settings" class="view">
-      <h2>学習</h2>
-      <label class="row">1日の新出単語数
-        <select id="set-new">
-          <option value="5">5語</option>
-          <option value="10">10語</option>
-          <option value="20">20語</option>
-          <option value="30">30語</option>
-          <option value="0">制限なし</option>
-        </select>
-      </label>
-
-      <h2>音声読み上げ</h2>
-      <label class="row">カード表示時に自動で読み上げ
-        <input id="set-auto" type="checkbox">
-      </label>
-      <label class="row">速度 <span id="rate-val"></span>
-        <input id="set-rate" type="range" min="0.5" max="1.3" step="0.1">
-      </label>
-      <label class="row">声
-        <select id="set-voice"><option value="">自動</option></select>
-      </label>
-      <button id="btn-test-voice" class="ghost">テスト再生：Здра́вствуйте!</button>
-      <p class="muted small">声が出ない場合：iPhoneの「設定 → アクセシビリティ → 読み上げコンテンツ → 声 → ロシア語」で音声をダウンロードし、消音モードを解除してください。</p>
-
-      <h2>学習記録</h2>
-      <p class="muted small">記録はこの端末のブラウザ内に保存されます。機種変更やURL変更の前にバックアップしてください。</p>
-      <div class="btn-row">
-        <button id="btn-export" class="ghost">バックアップを保存</button>
-        <label class="ghost file-btn">バックアップから復元<input id="file-import" type="file" accept="application/json,.json" hidden></label>
-      </div>
-      <button id="btn-reset" class="danger">学習記録をすべて消去</button>
-
-      <p class="muted small center" id="app-info"></p>
-    </section>
+    <div id="buttons" class="buttons waiting">
+      <button id="btn-again" class="btn again">まだ</button>
+      <button id="btn-good" class="btn good">覚えた</button>
+    </div>
   </main>
-
-  <nav class="tabbar">
-    <button data-view="home" class="active"><span>📖</span>学習</button>
-    <button data-view="list"><span>📋</span>単語一覧</button>
-    <button data-view="settings"><span>⚙️</span>設定</button>
-  </nav>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>
