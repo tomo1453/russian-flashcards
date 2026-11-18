@@ -115,18 +115,20 @@ main {
 @keyframes enter { from { transform: translateY(40px) scale(.9); opacity: 0; } }
 
 /* ===== ボタン ===== */
-.buttons { display: flex; gap: 14px; transition: opacity .2s; }
+.buttons { display: flex; gap: 10px; transition: opacity .2s; }
 .buttons.waiting { opacity: 0; pointer-events: none; }
 .btn {
   flex: 1;
   border: none;
   border-radius: 24px;
   padding: 20px 0;
-  font-size: 1.5rem;
+  font-size: clamp(1.1rem, 5.4vw, 1.5rem);
   font-weight: 800;
   color: #fff;
+  white-space: nowrap;
   transition: transform .1s;
 }
 .btn:active { transform: translateY(4px); box-shadow: none !important; }
 .again { background: #ff8a5b; box-shadow: 0 6px 0 #d9653a; }
 .good { background: #2ec4a6; box-shadow: 0 6px 0 #1e9b82; }
+.known-btn { background: #9b5de5; box-shadow: 0 6px 0 #7a3fc2; }

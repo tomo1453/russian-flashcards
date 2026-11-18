@@ -1,6 +1,6 @@
 // オフライン対応：ネットワーク優先、つながらない時はキャッシュを使う
 // アプリ本体を更新したら CACHE の番号を上げてください（単語データだけの更新なら不要）
-const CACHE = 'rf-v7';
+const CACHE = 'rf-v8';
 const ASSETS = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'data/words.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',

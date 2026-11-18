@@ -7,7 +7,7 @@
  *     覚えた → 5日後に確認1 → 覚えた → 10日後に確認2 → 覚えた → 14日後に確認3 → 覚えた → 「知ってる」
  *   確認の途中で「まだ」が押されたら、確認をやめて通常の出題に戻す
  * - 期限が来た（過ぎた）確認の単語を最優先で出題する
- * - 初めて出た単語でいきなり「覚えた」を押したら、確認なしですぐ「知ってる」に移す
+ * - 「知ってる」：確認なしですぐ「知ってる」に移す（最初から知っている単語用）
  * - 「知ってる」に移った単語はもう出題しない
  */
 const STORE_KEY = 'rf.state.v1';
@@ -147,16 +147,18 @@ function flip() {
   card.classList.toggle('flipped');
 }
 
-function answer(remembered) {
+// kind: 'again'（まだ） / 'good'（覚えた） / 'known'（知ってる）
+function answer(kind) {
   if (busy || !current) return; // 裏返す前でも回答できる
   busy = true;
   const id = current.id;
   const st = state[id];
   const t = today();
-  if (remembered) {
+  if (kind === 'known') {
+    state[id] = { known: t };
+  } else if (kind === 'good') {
     const n = st && st.check ? st.check : 0; // いま何回目の確認か（0 = 通常の出題）
-    if (!st || n >= CHECK_DAYS.length) {
-      // 初めて出た単語（最初から知ってる）か、確認3まで済んだ単語
+    if (n >= CHECK_DAYS.length) {
       state[id] = { known: t };
     } else {
       state[id] = { check: n + 1, due: t + CHECK_DAYS[n] };
@@ -243,13 +245,15 @@ async function init() {
     if (e.target.closest('.speak')) { e.stopPropagation(); speak(); return; }
     flip();
   });
-  $('#btn-good').addEventListener('click', () => answer(true));
-  $('#btn-again').addEventListener('click', () => answer(false));
+  $('#btn-again').addEventListener('click', () => answer('again'));
+  $('#btn-good').addEventListener('click', () => answer('good'));
+  $('#btn-known').addEventListener('click', () => answer('known'));
   // PCで確認する用：Space=裏返す ←=まだ →=覚えた
   document.addEventListener('keydown', (e) => {
     if (e.key === ' ') { e.preventDefault(); flip(); }
-    if (e.key === 'ArrowLeft') answer(false);
-    if (e.key === 'ArrowRight') answer(true);
+    if (e.key === '1') answer('again');
+    if (e.key === '2') answer('good');
+    if (e.key === '3') answer('known');
   });
 
   if ('speechSynthesis' in window) {
