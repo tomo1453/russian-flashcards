@@ -121,8 +121,41 @@ function loadVoice() {
   const voices = speechSynthesis.getVoices().filter((v) => /^ru/i.test(v.lang));
   ruVoice = voices.find((v) => v.localService) || voices[0] || null;
 }
+/*
+ * iPhone の消音モード（マナースイッチ）対策
+ * 1. Audio Session API（iOS 16.4以降）で「再生」扱いにする
+ * 2. 未対応の端末向けに、無音の <audio> を鳴らして音声セッションを「再生」に切り替える
+ *    （<audio> 要素は消音モードでも鳴るため、その後の読み上げも聞こえるようになる）
+ */
+let silentAudio = null;
+function silentWavUrl() {
+  const rate = 8000, samples = 800; // 0.1秒
+  const buf = new ArrayBuffer(44 + samples);
+  const v = new DataView(buf);
+  const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF'); v.setUint32(4, 36 + samples, true); str(8, 'WAVE');
+  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  str(36, 'data'); v.setUint32(40, samples, true);
+  for (let i = 0; i < samples; i++) v.setUint8(44 + i, 128); // 8bit の無音
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 未対応 */ }
+  try {
+    if (!silentAudio) {
+      silentAudio = new Audio(silentWavUrl());
+      silentAudio.setAttribute('playsinline', '');
+    }
+    silentAudio.currentTime = 0;
+    const p = silentAudio.play();
+    if (p) p.catch(() => {});
+  } catch (e) { /* 失敗しても読み上げは続行 */ }
+}
+
 function speak() {
   if (!current || !('speechSynthesis' in window)) return;
+  unlockAudio();
   const u = new SpeechSynthesisUtterance(stripAccent(current.ru).replace(/…/g, ' '));
   u.lang = 'ru-RU';
   u.rate = 0.9;
