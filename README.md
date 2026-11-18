@@ -93,6 +93,7 @@ icons/                アイコン
 
 ```sh
 sudo apt-get install rhvoice rhvoice-russian ffmpeg
+echo "stress_marker=+" | sudo tee -a /etc/RHVoice/RHVoice.conf   # アクセント記号を有効にする
 python3 tools/make_audio.py
 ```
 

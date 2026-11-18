@@ -3,6 +3,8 @@
 
 必要なもの（Ubuntu の場合）:
     sudo apt-get install rhvoice rhvoice-russian ffmpeg
+    echo "stress_marker=+" | sudo tee -a /etc/RHVoice/RHVoice.conf
+    （この設定がないと「+」が強勢記号として扱われず、アクセントが反映されません）
 使い方:
     python3 tools/make_audio.py          # まだ音声がない単語だけ作る
     python3 tools/make_audio.py --all    # 全部作り直す
@@ -23,7 +25,18 @@ def to_rhvoice(text):
     return text.replace("…", " ").strip()
 
 
+def check_config():
+    conf = "/etc/RHVoice/RHVoice.conf"
+    try:
+        lines = [l.strip() for l in open(conf, encoding="utf-8")]
+    except OSError:
+        lines = []
+    if "stress_marker=+" not in lines:
+        sys.exit(f"{conf} に stress_marker=+ を追加してください（アクセントを反映するため）")
+
+
 def main():
+    check_config()
     redo = "--all" in sys.argv
     words = json.load(open(os.path.join(ROOT, "data", "words.json"), encoding="utf-8"))
     os.makedirs(os.path.join(ROOT, "audio"), exist_ok=True)
