@@ -121,6 +121,7 @@ function render(w) {
     return;
   }
   card.querySelectorAll('.speak').forEach((b) => { b.hidden = false; });
+  $('#buttons').classList.remove('waiting');
   recent = [w.id, ...recent].slice(0, Math.min(5, Math.floor(words.length / 2)));
   card.style.setProperty('--c1', w.color[0]);
   card.style.setProperty('--c2', w.color[1]);
@@ -140,11 +141,10 @@ function render(w) {
 function flip() {
   if (busy || !current) return;
   card.classList.toggle('flipped');
-  $('#buttons').classList.toggle('waiting', !card.classList.contains('flipped'));
 }
 
 function answer(remembered) {
-  if (busy || !current || !card.classList.contains('flipped')) return;
+  if (busy || !current) return; // 裏返す前でも回答できる
   busy = true;
   const id = current.id;
   const st = state[id];
@@ -163,7 +163,6 @@ function answer(remembered) {
   saveState();
 
   const stage = $('#stage');
-  $('#buttons').classList.add('waiting');
   stage.classList.add('leave');
   setTimeout(() => {
     stage.classList.remove('leave');
@@ -261,7 +260,6 @@ async function init() {
   }
   if (!words.length) { $('#ru').textContent = '単語がありません'; return; }
   render(pickNext());
-  $('#buttons').classList.add('waiting');
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
