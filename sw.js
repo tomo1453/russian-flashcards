@@ -1,13 +1,22 @@
 // オフライン対応：ネットワーク優先、つながらない時はキャッシュを使う
 // アプリ本体を更新したら CACHE の番号を上げてください（単語データだけの更新なら不要）
-const CACHE = 'rf-v3';
+const CACHE = 'rf-v4';
 const ASSETS = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'data/words.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(ASSETS);
+    // 単語の音声ファイルもオフライン用に保存（ない単語は無視）
+    try {
+      const words = await (await cache.match('data/words.json')).json();
+      await Promise.allSettled(words.map((w) => cache.add(`audio/${encodeURIComponent(w.id)}.mp3`)));
+    } catch (err) { /* 音声なしでも動く */ }
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (e) => {
@@ -29,7 +38,7 @@ self.addEventListener('fetch', (e) => {
         fetch(req, { cache: 'no-cache' }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
       ]);
-      if (res.ok) cache.put(req, res.clone());
+      if (res.status === 200) cache.put(req, res.clone()).catch(() => {});
       return res;
     } catch (err) {
       const hit = await cache.match(req, { ignoreSearch: true });

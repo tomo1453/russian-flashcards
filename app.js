@@ -82,6 +82,7 @@ function render(w) {
   $('#ex-ru').textContent = w.exRu;
   $('#ex-ja').textContent = w.exJa;
   $('#example').classList.toggle('hidden', !w.exRu);
+  preload(w);
 }
 
 function flip() {
@@ -122,46 +123,53 @@ function loadVoice() {
   ruVoice = voices.find((v) => v.localService) || voices[0] || null;
 }
 /*
- * iPhone の消音モード（マナースイッチ）対策
- * 1. Audio Session API（iOS 16.4以降）で「再生」扱いにする
- * 2. 未対応の端末向けに、無音の <audio> を鳴らして音声セッションを「再生」に切り替える
- *    （<audio> 要素は消音モードでも鳴るため、その後の読み上げも聞こえるようになる）
+ * 読み上げ
+ * - audio/<id>.mp3 があればそれを <audio> で再生（iPhoneの消音モードでも鳴る）
+ * - ファイルがない単語（後から追加した単語など）はブラウザの音声合成で読み上げ
+ *   ※ 音声合成は消音モードでは鳴りません
  */
-let silentAudio = null;
-function silentWavUrl() {
-  const rate = 8000, samples = 800; // 0.1秒
-  const buf = new ArrayBuffer(44 + samples);
-  const v = new DataView(buf);
-  const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
-  str(0, 'RIFF'); v.setUint32(4, 36 + samples, true); str(8, 'WAVE');
-  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
-  str(36, 'data'); v.setUint32(40, samples, true);
-  for (let i = 0; i < samples; i++) v.setUint8(44 + i, 128); // 8bit の無音
-  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+const player = new Audio();
+player.preload = 'auto';
+player.setAttribute('playsinline', '');
+let utterance = null; // 途中で読み上げが切れないよう参照を保持
+
+const audioUrl = (w) => `audio/${encodeURIComponent(w.id)}.mp3`;
+const blobUrls = new Map(); // id → 先読みした音声（null はファイルなし）
+
+function speakSynth(text) {
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  utterance = new SpeechSynthesisUtterance(stripAccent(text).replace(/…/g, ' '));
+  utterance.lang = 'ru-RU';
+  utterance.rate = 0.9;
+  if (ruVoice) utterance.voice = ruVoice;
+  // cancel() 直後に speak() すると iOS で途切れることがあるため少し待つ
+  setTimeout(() => speechSynthesis.speak(utterance), 50);
 }
-function unlockAudio() {
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 未対応 */ }
+
+// カード表示時に音声ファイルを先読み（タップした瞬間にすぐ再生できるように）
+async function preload(w) {
+  if (blobUrls.has(w.id)) return;
   try {
-    if (!silentAudio) {
-      silentAudio = new Audio(silentWavUrl());
-      silentAudio.setAttribute('playsinline', '');
-    }
-    silentAudio.currentTime = 0;
-    const p = silentAudio.play();
-    if (p) p.catch(() => {});
-  } catch (e) { /* 失敗しても読み上げは続行 */ }
+    const res = await fetch(audioUrl(w));
+    if (!res.ok) throw new Error(res.status);
+    blobUrls.set(w.id, URL.createObjectURL(await res.blob()));
+  } catch (e) {
+    blobUrls.set(w.id, null);
+  }
 }
 
 function speak() {
-  if (!current || !('speechSynthesis' in window)) return;
-  unlockAudio();
-  const u = new SpeechSynthesisUtterance(stripAccent(current.ru).replace(/…/g, ' '));
-  u.lang = 'ru-RU';
-  u.rate = 0.9;
-  if (ruVoice) u.voice = ruVoice;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+  if (!current) return;
+  const w = current;
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 未対応 */ }
+  const src = blobUrls.get(w.id);
+  if (src === null) { speakSynth(w.ru); return; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  const url = src || audioUrl(w); // 先読みが間に合っていなければ直接再生
+  if (player.src !== url) player.src = url;
+  player.currentTime = 0;
+  player.play().catch(() => speakSynth(w.ru));
 }
 
 /* ===== 起動 ===== */
