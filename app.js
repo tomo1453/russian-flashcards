@@ -2,12 +2,15 @@
 
 /*
  * 出題のしくみ
- * - 単語ごとに「覚えた度」(0〜5) を localStorage に保存
- * - 覚えた度が高いほど出題されにくい（重み 1/2^覚えた度 のランダム）
- * - 「まだ」を押した単語は覚えた度を0に戻し、3枚後にもう一度出す
+ * - 「まだ」：3枚後にもう一度出題（通常の出題に戻る）
+ * - 「覚えた」：確認待ちになり、日数をあけて再出題する
+ *     覚えた → 5日後に確認1 → 覚えた → 10日後に確認2 → 覚えた → 14日後に確認3 → 覚えた → 「知ってる」
+ *   確認の途中で「まだ」が押されたら、確認をやめて通常の出題に戻す
+ * - 期限が来た（過ぎた）確認の単語を最優先で出題する
+ * - 「知ってる」に移った単語はもう出題しない
  */
-const STORE_KEY = 'rf.level.v1';
-const MAX_LEVEL = 5;
+const STORE_KEY = 'rf.state.v1';
+const CHECK_DAYS = [5, 10, 14]; // 確認1・2・3 までの日数
 const AGAIN_AFTER = 3;
 const COLORS = [
   ['#ff6b6b', '#ff9f43'], ['#4d96ff', '#6bcbff'], ['#9b5de5', '#f15bb5'],
@@ -16,7 +19,9 @@ const COLORS = [
 ];
 
 let words = [];
-let levels = {};
+// 単語ごとの状態 { id: { check: 1〜3, due: 日 } }（確認待ち） / { known: 日 }（知ってる）
+// 記録がない単語は通常の出題
+let state = {};
 let current = null;
 let recent = [];      // 直近に出した単語（連続で出さないため）
 let againQueue = [];  // [{ word, wait }]
@@ -27,11 +32,18 @@ const $ = (s) => document.querySelector(s);
 const card = $('#card');
 
 /* ===== データ ===== */
-function loadLevels() {
-  try { levels = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { levels = {}; }
+function loadState() {
+  try { state = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { state = {}; }
+  try { localStorage.removeItem('rf.level.v1'); } catch (e) { /* 旧形式の記録を削除 */ }
 }
-function saveLevels() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(levels)); } catch (e) { /* 保存不可でも続行 */ }
+function saveState() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 保存不可でも続行 */ }
+}
+
+// 端末の現地時間での日付（日単位の通し番号）
+function today() {
+  const d = new Date();
+  return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000);
 }
 
 // "Здра+вствуйте" の + 記法をアクセント記号に変換
@@ -54,28 +66,68 @@ async function loadWords() {
   });
 }
 
+/* ===== 達成度 ===== */
+function updateStats() {
+  let known = 0, checking = 0;
+  words.forEach((w) => {
+    const st = state[w.id];
+    if (!st) return;
+    if (st.known) known++;
+    else if (st.check) checking++;
+  });
+  $('#known').textContent = known;
+  $('#total').textContent = words.length;
+  $('#checking').textContent = checking;
+}
+
 /* ===== 出題 ===== */
 function pickNext() {
   againQueue.forEach((a) => a.wait--);
   const readyIdx = againQueue.findIndex((a) => a.wait <= 0);
   if (readyIdx >= 0) return againQueue.splice(readyIdx, 1)[0].word;
 
-  const waiting = new Set(againQueue.map((a) => a.word.id));
-  let pool = words.filter((w) => !recent.includes(w.id) && !waiting.has(w.id));
-  if (!pool.length) pool = words.filter((w) => w !== current);
-  if (!pool.length) pool = words;
+  // 期限が来た確認の単語を優先（期限が古い順）
+  const t = today();
+  const due = words
+    .filter((w) => w !== current && state[w.id] && state[w.id].check && state[w.id].due <= t)
+    .sort((a, b) => state[a.id].due - state[b.id].due);
+  if (due.length) return due[0];
 
-  const weight = (w) => 1 / Math.pow(2, levels[w.id] || 0);
-  let r = Math.random() * pool.reduce((sum, w) => sum + weight(w), 0);
-  for (const w of pool) { r -= weight(w); if (r <= 0) return w; }
-  return pool[pool.length - 1];
+  // 通常の出題：記録のない単語からランダム
+  const waiting = new Set(againQueue.map((a) => a.word.id));
+  const normal = words.filter((w) => !state[w.id] && !waiting.has(w.id));
+  let pool = normal.filter((w) => !recent.includes(w.id));
+  if (!pool.length) pool = normal.filter((w) => w !== current);
+  if (!pool.length) pool = normal;
+  if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
+
+  // 残りが「まだ」の待ちだけなら前倒しで出す
+  if (againQueue.length) return againQueue.shift().word;
+  return null;
 }
 
 function render(w) {
   current = w;
+  updateStats();
+  if (!w) {
+    // 今日出す単語がない
+    card.style.setProperty('--c1', '#2ec4a6');
+    card.style.setProperty('--c2', '#4ae3c0');
+    $('#ru').textContent = 'Молоде́ц!';
+    $('#hint').textContent = '今日の出題はおしまい。確認の単語は期限が来たら出題されます';
+    $('#badge').hidden = true;
+    card.querySelectorAll('.speak').forEach((b) => { b.hidden = true; });
+    $('#buttons').classList.add('waiting');
+    return;
+  }
+  card.querySelectorAll('.speak').forEach((b) => { b.hidden = false; });
   recent = [w.id, ...recent].slice(0, Math.min(5, Math.floor(words.length / 2)));
   card.style.setProperty('--c1', w.color[0]);
   card.style.setProperty('--c2', w.color[1]);
+  const st = state[w.id];
+  $('#badge').hidden = !(st && st.check);
+  if (st && st.check) $('#badge').textContent = `確認 ${st.check}/${CHECK_DAYS.length}`;
+  $('#hint').textContent = 'タップして裏返す';
   $('#ru').textContent = w.ru;
   $('#ru-small').textContent = w.ru;
   $('#ja').textContent = w.ja;
@@ -94,13 +146,21 @@ function flip() {
 function answer(remembered) {
   if (busy || !current || !card.classList.contains('flipped')) return;
   busy = true;
+  const id = current.id;
+  const st = state[id];
+  const t = today();
   if (remembered) {
-    levels[current.id] = Math.min(MAX_LEVEL, (levels[current.id] || 0) + 1);
+    const n = st && st.check ? st.check : 0; // いま何回目の確認か（0 = 通常の出題）
+    if (n >= CHECK_DAYS.length) {
+      state[id] = { known: t };
+    } else {
+      state[id] = { check: n + 1, due: t + CHECK_DAYS[n] };
+    }
   } else {
-    levels[current.id] = 0;
+    delete state[id];
     againQueue.push({ word: current, wait: AGAIN_AFTER + 1 });
   }
-  saveLevels();
+  saveState();
 
   const stage = $('#stage');
   $('#buttons').classList.add('waiting');
@@ -174,7 +234,7 @@ function speak() {
 
 /* ===== 起動 ===== */
 async function init() {
-  loadLevels();
+  loadState();
   card.addEventListener('click', (e) => {
     if (e.target.closest('.speak')) { e.stopPropagation(); speak(); return; }
     flip();

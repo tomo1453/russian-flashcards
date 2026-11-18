@@ -16,12 +16,17 @@
 </head>
 <body>
   <main>
+    <header class="stats">
+      <div class="known">覚えた単語 <b id="known">0</b><small> / <span id="total">0</span></small></div>
+      <div class="checking">確認中 <span id="checking">0</span>語</div>
+    </header>
     <div id="stage" class="stage">
       <div id="card" class="card" role="button" tabindex="0" aria-label="タップして裏返す">
         <div class="face front">
+          <span id="badge" class="badge" hidden></span>
           <button class="speak" aria-label="読み上げ">🔊</button>
           <div id="ru" class="ru"></div>
-          <p class="hint">タップして裏返す</p>
+          <p id="hint" class="hint">タップして裏返す</p>
         </div>
         <div class="face back">
           <button class="speak" aria-label="読み上げ">🔊</button>
