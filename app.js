@@ -7,6 +7,7 @@
  *     覚えた → 5日後に確認1 → 覚えた → 10日後に確認2 → 覚えた → 14日後に確認3 → 覚えた → 「知ってる」
  *   確認の途中で「まだ」が押されたら、確認をやめて通常の出題に戻す
  * - 期限が来た（過ぎた）確認の単語を最優先で出題する
+ * - 初めて出た単語でいきなり「覚えた」を押したら、確認なしですぐ「知ってる」に移す
  * - 「知ってる」に移った単語はもう出題しない
  */
 const STORE_KEY = 'rf.state.v1';
@@ -20,7 +21,7 @@ const COLORS = [
 
 let words = [];
 // 単語ごとの状態 { id: { check: 1〜3, due: 日 } }（確認待ち） / { known: 日 }（知ってる）
-// 記録がない単語は通常の出題
+// { seen: 日 } は一度出たことがある通常の単語、記録がない単語はまだ一度も出ていない単語
 let state = {};
 let current = null;
 let recent = [];      // 直近に出した単語（連続で出さないため）
@@ -81,6 +82,9 @@ function updateStats() {
 }
 
 /* ===== 出題 ===== */
+// 通常の出題対象か（未出題 or 出たことがある通常の単語）
+const isNormal = (st) => !st || (!st.check && !st.known);
+
 function pickNext() {
   againQueue.forEach((a) => a.wait--);
   const readyIdx = againQueue.findIndex((a) => a.wait <= 0);
@@ -95,7 +99,7 @@ function pickNext() {
 
   // 通常の出題：記録のない単語からランダム
   const waiting = new Set(againQueue.map((a) => a.word.id));
-  const normal = words.filter((w) => !state[w.id] && !waiting.has(w.id));
+  const normal = words.filter((w) => isNormal(state[w.id]) && !waiting.has(w.id));
   let pool = normal.filter((w) => !recent.includes(w.id));
   if (!pool.length) pool = normal.filter((w) => w !== current);
   if (!pool.length) pool = normal;
@@ -151,13 +155,14 @@ function answer(remembered) {
   const t = today();
   if (remembered) {
     const n = st && st.check ? st.check : 0; // いま何回目の確認か（0 = 通常の出題）
-    if (n >= CHECK_DAYS.length) {
+    if (!st || n >= CHECK_DAYS.length) {
+      // 初めて出た単語（最初から知ってる）か、確認3まで済んだ単語
       state[id] = { known: t };
     } else {
       state[id] = { check: n + 1, due: t + CHECK_DAYS[n] };
     }
   } else {
-    delete state[id];
+    state[id] = { seen: t };
     againQueue.push({ word: current, wait: AGAIN_AFTER + 1 });
   }
   saveState();
