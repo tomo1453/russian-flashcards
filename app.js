@@ -62,8 +62,38 @@ async function loadWords() {
       ja: String(w.ja),
       exRu: normalizeRu(w.ex_ru),
       exJa: String(w.ex_ja || ''),
+      pic: String(w.pic || ''),   // 絵文字（スペース区切り。先頭がメイン）
+      img: String(w.img || ''),   // 画像ファイル（指定があれば絵文字より優先）
       color: COLORS[i % COLORS.length],
     };
+  });
+}
+
+/* ===== 表紙の絵 ===== */
+// 先頭の絵文字を大きく、残りを周りに小さく配置。img があれば画像を表示
+function renderPic(pic, img) {
+  const box = $('#pic');
+  box.textContent = '';
+  box.classList.toggle('has-img', !!img);
+  if (img) {
+    const el = document.createElement('img');
+    el.src = img;
+    el.alt = '';
+    box.appendChild(el);
+    return;
+  }
+  const [main, ...acc] = pic.trim().split(/\s+/).filter(Boolean);
+  box.hidden = !main;
+  if (!main) return;
+  const m = document.createElement('span');
+  m.className = 'main';
+  m.textContent = main;
+  box.appendChild(m);
+  acc.slice(0, 3).forEach((a, i) => {
+    const el = document.createElement('span');
+    el.className = `acc a${i + 1}`;
+    el.textContent = a;
+    box.appendChild(el);
   });
 }
 
@@ -118,6 +148,8 @@ function render(w) {
     card.style.setProperty('--c1', '#2ec4a6');
     card.style.setProperty('--c2', '#4ae3c0');
     $('#ru').textContent = 'Молоде́ц!';
+    $('#ru').classList.remove('long');
+    renderPic('🎉 ⭐ 🏆', '');
     $('#hint').textContent = '今日の出題はおしまい。確認の単語は期限が来たら出題されます';
     $('#badge').hidden = true;
     card.querySelectorAll('.speak').forEach((b) => { b.hidden = true; });
@@ -133,7 +165,10 @@ function render(w) {
   $('#badge').hidden = !(st && st.check);
   if (st && st.check) $('#badge').textContent = `確認 ${st.check}/${CHECK_DAYS.length}`;
   $('#hint').textContent = 'タップして裏返す';
-  $('#ru').textContent = w.ru;
+  renderPic(w.pic, w.img);
+  // ハイフンで改行されないようにし、長いフレーズは文字を小さく
+  $('#ru').textContent = w.ru.replace(/-/g, '\u2011');
+  $('#ru').classList.toggle('long', stripAccent(w.ru).length > 14);
   $('#ru-small').textContent = w.ru;
   $('#ja').textContent = w.ja;
   $('#ex-ru').textContent = w.exRu;
