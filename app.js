@@ -95,15 +95,23 @@ async function loadWords() {
 
 /* ===== 表紙の絵 ===== */
 // 先頭の絵文字を大きく、残りを周りに小さく配置。img があれば画像を表示
-function renderPic(pic, img) {
+// concealed のときは「？」で隠し、タップすると出てくる
+function renderPic(pic, img, concealed = true) {
   const box = $('#pic');
   box.textContent = '';
   box.classList.toggle('has-img', !!img);
+  box.classList.remove('popping');
+  box.classList.toggle('concealed', concealed);
+  const mystery = document.createElement('span');
+  mystery.className = 'mystery';
+  mystery.innerHTML = '？<small>タップで絵</small>';
   if (img) {
+    box.hidden = false;
     const el = document.createElement('img');
     el.src = img;
     el.alt = '';
     box.appendChild(el);
+    box.appendChild(mystery);
     return;
   }
   const [main, ...acc] = pic.trim().split(/\s+/).filter(Boolean);
@@ -119,6 +127,15 @@ function renderPic(pic, img) {
     el.textContent = a;
     box.appendChild(el);
   });
+  box.appendChild(mystery);
+}
+
+function revealPic() {
+  const box = $('#pic');
+  if (!box.classList.contains('concealed')) return;
+  box.classList.remove('concealed');
+  box.classList.add('popping');
+  setTimeout(() => box.classList.remove('popping'), 550);
 }
 
 /* ===== 達成度 ===== */
@@ -175,7 +192,7 @@ function render(w) {
     card.style.setProperty('--c2', '#4ae3c0');
     $('#ru').textContent = 'Молоде́ц!';
     $('#ru').classList.remove('long');
-    renderPic('🎉 ⭐ 🏆', '');
+    renderPic('🎉 ⭐ 🏆', '', false);
     $('#hint').textContent = newLeft() === 0 && words.some((w) => !state[w.id])
       ? `今日の新しい単語（${settings.newPerDay}語）はおしまい。また明日！`
       : '今日の出題はおしまい。確認の単語は期限が来たら出題されます';
@@ -192,7 +209,7 @@ function render(w) {
   const st = state[w.id];
   $('#badge').hidden = !(st && st.check);
   if (st && st.check) $('#badge').textContent = `確認 ${st.check}/${CHECK_DAYS.length}`;
-  $('#hint').textContent = 'タップして裏返す';
+  $('#hint').textContent = '下半分をタップして裏返す';
   renderPic(w.pic, w.img);
   // ハイフンで改行されないようにし、長いフレーズは文字を小さく
   $('#ru').textContent = w.ru.replace(/-/g, '\u2011');
@@ -326,9 +343,14 @@ async function init() {
   loadState();
   loadSettings();
   setupSettings();
+  // 表面：真ん中の絵をタップ → 絵が出る / 下半分をタップ → 裏返す
+  // 裏面：どこをタップしても表に戻る
   card.addEventListener('click', (e) => {
     if (e.target.closest('.speak')) { e.stopPropagation(); speak(); return; }
-    flip();
+    if (card.classList.contains('flipped')) { flip(); return; }
+    if (e.target.closest('#pic')) { revealPic(); return; } // 絵の上のタップでは裏返さない
+    const r = card.getBoundingClientRect();
+    if (e.clientY - r.top > r.height / 2) flip();
   });
   $('#btn-again').addEventListener('click', () => answer('again'));
   $('#btn-good').addEventListener('click', () => answer('good'));
