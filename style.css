@@ -31,8 +31,32 @@ main {
   box-shadow: 0 4px 0 #f1e3cf;
 }
 .known b { font-size: 1.35rem; color: #9b5de5; margin: 0 2px; }
+.known, .sub > div { white-space: nowrap; }
+
 .known small { color: #8a8299; font-weight: 600; }
-.checking { font-size: .85rem; color: #8a8299; font-weight: 600; }
+.sub { margin-left: auto; font-size: .8rem; color: #8a8299; font-weight: 600; text-align: right; line-height: 1.35; }
+.gear {
+  border: none; background: #fff; border-radius: 50%;
+  width: 42px; height: 42px; font-size: 1.2rem; flex: none;
+  box-shadow: 0 4px 0 #f1e3cf;
+}
+
+/* ===== 設定 ===== */
+.settings {
+  border: none; border-radius: 28px; padding: 24px;
+  width: min(90vw, 380px);
+  color: #2b2240; background: #fff;
+  box-shadow: 0 20px 60px rgba(43,34,64,.25);
+}
+.settings::backdrop { background: rgba(43,34,64,.35); }
+.settings h2 { margin: 0 0 16px; font-size: 1.3rem; }
+.settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700; }
+.settings select {
+  font: inherit; font-size: 16px; padding: 8px 12px;
+  border-radius: 12px; border: 2px solid #eadff5; background: #faf6ff; color: inherit;
+}
+.settings p { font-size: .85rem; color: #6b6280; line-height: 1.5; }
+.settings .btn { width: 100%; margin-top: 8px; padding: 14px 0; font-size: 1.2rem; }
 
 /* ===== カード ===== */
 .stage { flex: 1; perspective: 1400px; display: flex; }
@@ -64,7 +88,10 @@ main {
   box-shadow: 0 14px 0 -4px rgba(0,0,0,.08), 0 18px 40px -10px var(--c1);
 }
 .back {
+  padding-top: 84px; /* 🔊ボタンの分 */
   transform: rotateY(180deg);
+  overflow-y: auto;
+  justify-content: flex-start; /* 中央寄せは下の margin:auto で行う（はみ出した時に上が切れないように） */
   background: #fff;
   border: 6px solid var(--c1);
   box-shadow: 0 18px 40px -14px var(--c1);
@@ -133,8 +160,11 @@ main {
   font-size: .95rem; font-weight: 800;
 }
 .badge[hidden], .speak[hidden] { display: none; }
+.back > .ru-small { margin-top: auto; }
+.back > .example { margin-bottom: auto; }
 .ru-small { font-size: 1.3rem; font-weight: 700; color: var(--c1); filter: brightness(.85); }
 .ja { font-size: clamp(2rem, 9vw, 2.8rem); font-weight: 800; line-height: 1.3; margin: 10px 0 24px; }
+.ja.long { font-size: clamp(1.45rem, 6.6vw, 2.1rem); margin: 8px 0 18px; }
 .example {
   width: 100%;
   background: color-mix(in srgb, var(--c2) 16%, #fff);
@@ -180,3 +210,15 @@ main {
 .again { background: #ff8a5b; box-shadow: 0 6px 0 #d9653a; }
 .good { background: #2ec4a6; box-shadow: 0 6px 0 #1e9b82; }
 .known-btn { background: #9b5de5; box-shadow: 0 6px 0 #7a3fc2; }
+
+/* 幅の狭い iPhone（SE など）向け */
+@media (max-width: 360px) {
+  .stats { gap: 6px; }
+  .known { padding: 7px 12px; font-size: .85rem; }
+  .known b { font-size: 1.1rem; }
+  .sub { font-size: .7rem; }
+  .gear { width: 36px; height: 36px; font-size: 1rem; }
+  .back { padding: 72px 18px 18px; }
+  .example { padding: 12px 14px; }
+  .ex-ru { font-size: 1.1rem; }
+}

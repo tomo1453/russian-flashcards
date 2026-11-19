@@ -9,10 +9,15 @@
  * - 期限が来た（過ぎた）確認の単語を最優先で出題する
  * - 「知ってる」：確認なしですぐ「知ってる」に移す（最初から知っている単語用）
  * - 「知ってる」に移った単語はもう出題しない
+ * - まだ一度も出ていない単語（新出単語）は1日 settings.newPerDay 語まで（「知ってる」は数えない）
+ * - 優先順：「まだ」の再出題 → 期限が来た確認 → 出たことのある単語＋新出単語（上限まで）
  */
 const STORE_KEY = 'rf.state.v1';
 const CHECK_DAYS = [5, 10, 14]; // 確認1・2・3 までの日数
 const AGAIN_AFTER = 3;
+const SETTINGS_KEY = 'rf.settings.v1';
+const DAILY_KEY = 'rf.daily.v1';
+const DEFAULT_SETTINGS = { newPerDay: 20 };
 const COLORS = [
   ['#ff6b6b', '#ff9f43'], ['#4d96ff', '#6bcbff'], ['#9b5de5', '#f15bb5'],
   ['#00b894', '#55efc4'], ['#ff7eb3', '#ffb86b'], ['#5f6cff', '#a66bff'],
@@ -23,6 +28,8 @@ let words = [];
 // 単語ごとの状態 { id: { check: 1〜3, due: 日 } }（確認待ち） / { known: 日 }（知ってる）
 // { seen: 日 } は一度出たことがある通常の単語、記録がない単語はまだ一度も出ていない単語
 let state = {};
+let settings = { ...DEFAULT_SETTINGS };
+let daily = { date: 0, newCount: 0 }; // 今日覚え始めた新出単語の数
 let current = null;
 let recent = [];      // 直近に出した単語（連続で出さないため）
 let againQueue = [];  // [{ word, wait }]
@@ -37,6 +44,23 @@ function loadState() {
   try { state = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { state = {}; }
   try { localStorage.removeItem('rf.level.v1'); } catch (e) { /* 旧形式の記録を削除 */ }
 }
+function loadSettings() {
+  try { settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY)) }; } catch (e) { /* 既定値 */ }
+  try { daily = { ...daily, ...JSON.parse(localStorage.getItem(DAILY_KEY)) }; } catch (e) { /* 既定値 */ }
+}
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* 保存不可でも続行 */ }
+}
+function newCountToday() {
+  if (daily.date !== today()) daily = { date: today(), newCount: 0 };
+  return daily.newCount;
+}
+function countNew() {
+  newCountToday();
+  daily.newCount++;
+  try { localStorage.setItem(DAILY_KEY, JSON.stringify(daily)); } catch (e) { /* 保存不可でも続行 */ }
+}
+const newLeft = () => Math.max(0, settings.newPerDay - newCountToday());
 function saveState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 保存不可でも続行 */ }
 }
@@ -109,6 +133,7 @@ function updateStats() {
   $('#known').textContent = known;
   $('#total').textContent = words.length;
   $('#checking').textContent = checking;
+  $('#new-today').textContent = `${newCountToday()}/${settings.newPerDay}`;
 }
 
 /* ===== 出題 ===== */
@@ -127,9 +152,10 @@ function pickNext() {
     .sort((a, b) => state[a.id].due - state[b.id].due);
   if (due.length) return due[0];
 
-  // 通常の出題：記録のない単語からランダム
+  // 通常の出題：出たことのある単語と、新出単語（今日の上限まで）からランダム
   const waiting = new Set(againQueue.map((a) => a.word.id));
-  const normal = words.filter((w) => isNormal(state[w.id]) && !waiting.has(w.id));
+  const allowNew = newLeft() > 0;
+  const normal = words.filter((w) => isNormal(state[w.id]) && !waiting.has(w.id) && (allowNew || state[w.id]));
   let pool = normal.filter((w) => !recent.includes(w.id));
   if (!pool.length) pool = normal.filter((w) => w !== current);
   if (!pool.length) pool = normal;
@@ -150,7 +176,9 @@ function render(w) {
     $('#ru').textContent = 'Молоде́ц!';
     $('#ru').classList.remove('long');
     renderPic('🎉 ⭐ 🏆', '');
-    $('#hint').textContent = '今日の出題はおしまい。確認の単語は期限が来たら出題されます';
+    $('#hint').textContent = newLeft() === 0 && words.some((w) => !state[w.id])
+      ? `今日の新しい単語（${settings.newPerDay}語）はおしまい。また明日！`
+      : '今日の出題はおしまい。確認の単語は期限が来たら出題されます';
     $('#badge').hidden = true;
     card.querySelectorAll('.speak').forEach((b) => { b.hidden = true; });
     $('#buttons').classList.add('waiting');
@@ -169,8 +197,9 @@ function render(w) {
   // ハイフンで改行されないようにし、長いフレーズは文字を小さく
   $('#ru').textContent = w.ru.replace(/-/g, '\u2011');
   $('#ru').classList.toggle('long', stripAccent(w.ru).length > 14);
-  $('#ru-small').textContent = w.ru;
+  $('#ru-small').textContent = w.ru.replace(/-/g, '\u2011');
   $('#ja').textContent = w.ja;
+  $('#ja').classList.toggle('long', w.ja.length > 8);
   $('#ex-ru').textContent = w.exRu;
   $('#ex-ja').textContent = w.exJa;
   $('#example').classList.toggle('hidden', !w.exRu);
@@ -189,6 +218,7 @@ function answer(kind) {
   const id = current.id;
   const st = state[id];
   const t = today();
+  if (!st && kind !== 'known') countNew(); // 新出単語を覚え始めた（「知ってる」は数えない）
   if (kind === 'known') {
     state[id] = { known: t };
   } else if (kind === 'good') {
@@ -273,9 +303,29 @@ function speak() {
   player.play().catch(() => speakSynth(w.ru));
 }
 
+/* ===== 設定 ===== */
+function setupSettings() {
+  const dlg = $('#settings');
+  const sel = $('#set-new');
+  $('#btn-settings').addEventListener('click', () => {
+    sel.value = String(settings.newPerDay);
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  });
+  $('#btn-close').addEventListener('click', () => { if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); });
+  sel.addEventListener('change', () => {
+    settings.newPerDay = Number(sel.value);
+    saveSettings();
+    updateStats();
+    // 出題がおしまい表示で、上限を増やした場合はすぐ再開
+    if (!current && words.length) render(pickNext());
+  });
+}
+
 /* ===== 起動 ===== */
 async function init() {
   loadState();
+  loadSettings();
+  setupSettings();
   card.addEventListener('click', (e) => {
     if (e.target.closest('.speak')) { e.stopPropagation(); speak(); return; }
     flip();

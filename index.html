@@ -18,7 +18,11 @@
   <main>
     <header class="stats">
       <div class="known">覚えた単語 <b id="known">0</b><small> / <span id="total">0</span></small></div>
-      <div class="checking">確認中 <span id="checking">0</span>語</div>
+      <div class="sub">
+        <div>確認中 <span id="checking">0</span>語</div>
+        <div>今日の新出 <span id="new-today">0/20</span></div>
+      </div>
+      <button id="btn-settings" class="gear" aria-label="設定">⚙️</button>
     </header>
     <div id="stage" class="stage">
       <div id="card" class="card" role="button" tabindex="0" aria-label="タップして裏返す">
@@ -47,6 +51,22 @@
       <button id="btn-known" class="btn known-btn">知ってる</button>
     </div>
   </main>
+
+  <dialog id="settings" class="settings">
+    <h2>設定</h2>
+    <label>1日の新出単語数
+      <select id="set-new">
+        <option value="5">5語</option>
+        <option value="10">10語</option>
+        <option value="15">15語</option>
+        <option value="20">20語</option>
+        <option value="30">30語</option>
+        <option value="50">50語</option>
+      </select>
+    </label>
+    <p>まだ一度も出ていない単語を、1日に何語まで出題するか。確認の単語はこれとは別に、期限が来たら優先して出題されます。</p>
+    <button id="btn-close" class="btn good">閉じる</button>
+  </dialog>
 
   <script src="app.js"></script>
 </body>
