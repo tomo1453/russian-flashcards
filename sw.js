@@ -1,6 +1,6 @@
 // オフライン対応：ネットワーク優先、つながらない時はキャッシュを使う
 // アプリ本体を更新したら CACHE の番号を上げてください（単語データだけの更新なら不要）
-const CACHE = 'rf-v13';
+const CACHE = 'rf-v14';
 const ASSETS = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'data/words.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
@@ -13,7 +13,10 @@ self.addEventListener('install', (e) => {
     // 単語の音声ファイルもオフライン用に保存（ない単語は無視）
     try {
       const words = await (await cache.match('data/words.json')).json();
-      await Promise.allSettled(words.map((w) => cache.add(`audio/${encodeURIComponent(w.id)}.mp3`)));
+      await Promise.allSettled(words.flatMap((w) => [
+        cache.add(`audio/${encodeURIComponent(w.id)}.mp3`),
+        cache.add(`audio/ex/${encodeURIComponent(w.id)}.mp3`),
+      ]));
     } catch (err) { /* 音声なしでも動く */ }
     await self.skipWaiting();
   })());

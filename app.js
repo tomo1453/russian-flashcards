@@ -272,8 +272,8 @@ function loadVoice() {
 }
 /*
  * 読み上げ
- * - audio/<id>.mp3 があればそれを <audio> で再生（iPhoneの消音モードでも鳴る）
- * - ファイルがない単語（後から追加した単語など）はブラウザの音声合成で読み上げ
+ * - 単語は audio/<id>.mp3、例文は audio/ex/<id>.mp3 を <audio> で再生（iPhoneの消音モードでも鳴る）
+ * - ファイルがない単語・例文（後から追加したものなど）はブラウザの音声合成で読み上げ
  *   ※ 音声合成は消音モードでは鳴りません
  */
 const player = new Audio();
@@ -281,8 +281,9 @@ player.preload = 'auto';
 player.setAttribute('playsinline', '');
 let utterance = null; // 途中で読み上げが切れないよう参照を保持
 
-const audioUrl = (w) => `audio/${encodeURIComponent(w.id)}.mp3`;
-const blobUrls = new Map(); // id → 先読みした音声（null はファイルなし）
+// kind: 'word'（単語） / 'ex'（例文）
+const audioUrl = (w, kind) => `audio/${kind === 'ex' ? 'ex/' : ''}${encodeURIComponent(w.id)}.mp3`;
+const blobUrls = new Map(); // "kind:id" → 先読みした音声（null はファイルなし）
 
 function speakSynth(text) {
   if (!('speechSynthesis' in window)) return;
@@ -296,28 +297,35 @@ function speakSynth(text) {
 }
 
 // カード表示時に音声ファイルを先読み（タップした瞬間にすぐ再生できるように）
-async function preload(w) {
-  if (blobUrls.has(w.id)) return;
+async function preloadOne(w, kind) {
+  const key = `${kind}:${w.id}`;
+  if (blobUrls.has(key)) return;
   try {
-    const res = await fetch(audioUrl(w));
+    const res = await fetch(audioUrl(w, kind));
     if (!res.ok) throw new Error(res.status);
-    blobUrls.set(w.id, URL.createObjectURL(await res.blob()));
+    blobUrls.set(key, URL.createObjectURL(await res.blob()));
   } catch (e) {
-    blobUrls.set(w.id, null);
+    blobUrls.set(key, null);
   }
 }
+function preload(w) {
+  preloadOne(w, 'word');
+  if (w.exRu) preloadOne(w, 'ex');
+}
 
-function speak() {
+function speak(kind = 'word') {
   if (!current) return;
   const w = current;
+  const text = kind === 'ex' ? w.exRu : w.ru;
+  if (!text) return;
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 未対応 */ }
-  const src = blobUrls.get(w.id);
-  if (src === null) { speakSynth(w.ru); return; }
+  const src = blobUrls.get(`${kind}:${w.id}`);
+  if (src === null) { speakSynth(text); return; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
-  const url = src || audioUrl(w); // 先読みが間に合っていなければ直接再生
+  const url = src || audioUrl(w, kind); // 先読みが間に合っていなければ直接再生
   if (player.src !== url) player.src = url;
   player.currentTime = 0;
-  player.play().catch(() => speakSynth(w.ru));
+  player.play().catch(() => speakSynth(text));
 }
 
 /* ===== 設定 ===== */
@@ -346,7 +354,8 @@ async function init() {
   // 表面：真ん中の絵をタップ → 絵が出る / 下半分をタップ → 裏返す
   // 裏面：どこをタップしても表に戻る
   card.addEventListener('click', (e) => {
-    if (e.target.closest('.speak')) { e.stopPropagation(); speak(); return; }
+    if (e.target.closest('.speak')) { e.stopPropagation(); speak('word'); return; }
+    if (e.target.closest('.speak-ex')) { e.stopPropagation(); speak('ex'); return; }
     if (card.classList.contains('flipped')) { flip(); return; }
     if (e.target.closest('#pic')) { revealPic(); return; } // 絵の上のタップでは裏返さない
     const r = card.getBoundingClientRect();

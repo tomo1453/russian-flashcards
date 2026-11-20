@@ -11,8 +11,11 @@
     - 一致する語は記号を外して辞書の読みを使う（сегодня→сево́дня、конечно→коне́шно などの特殊な発音が生きる）
     - 一致しない語（плачу́ / пла́чу のような同綴り語など）だけデータの強勢記号で読ませる
 使い方:
-    python3 tools/make_audio.py          # まだ音声がない単語だけ作る
+    python3 tools/make_audio.py          # まだ音声がない単語・例文だけ作る
     python3 tools/make_audio.py --all    # 全部作り直す
+出力:
+    audio/<id>.mp3     単語
+    audio/ex/<id>.mp3  例文
 """
 import io, json, os, re, subprocess, sys, tempfile, unicodedata, wave
 import numpy as np
@@ -103,28 +106,36 @@ def check_config():
         sys.exit(f"{conf} に stress_marker=+ を追加してください（アクセントを反映するため）")
 
 
+def make_mp3(text, out):
+    with tempfile.NamedTemporaryFile(suffix=".wav") as wav:
+        subprocess.run(["RHVoice-test", "-p", VOICE, "-r", RATE, "-o", wav.name],
+                       input=reading(text).encode(), check=True, capture_output=True)
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav.name,
+                        "-af", "silenceremove=start_periods=1:start_threshold=-50dB,areverse,"
+                               "silenceremove=start_periods=1:start_threshold=-50dB,areverse,"
+                               "apad=pad_dur=0.15,loudnorm=I=-16",
+                        "-ac", "1", "-ar", "24000", "-codec:a", "libmp3lame", "-b:a", "48k", out],
+                       check=True)
+
+
 def main():
+    """単語 → audio/<id>.mp3、例文 → audio/ex/<id>.mp3"""
     check_config()
     redo = "--all" in sys.argv
     words = json.load(open(os.path.join(ROOT, "data", "words.json"), encoding="utf-8"))
-    os.makedirs(os.path.join(ROOT, "audio"), exist_ok=True)
+    os.makedirs(os.path.join(ROOT, "audio", "ex"), exist_ok=True)
     made = 0
     for w in words:
         wid = w.get("id") or w["ru"].replace("\u0301", "").replace("+", "")
-        out = os.path.join(ROOT, "audio", f"{wid}.mp3")
-        if os.path.exists(out) and not redo:
-            continue
-        with tempfile.NamedTemporaryFile(suffix=".wav") as wav:
-            subprocess.run(["RHVoice-test", "-p", VOICE, "-r", RATE, "-o", wav.name],
-                           input=reading(w["ru"]).encode(), check=True, capture_output=True)
-            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav.name,
-                            "-af", "silenceremove=start_periods=1:start_threshold=-50dB,areverse,"
-                                   "silenceremove=start_periods=1:start_threshold=-50dB,areverse,"
-                                   "apad=pad_dur=0.15,loudnorm=I=-16",
-                            "-ac", "1", "-ar", "24000", "-codec:a", "libmp3lame", "-b:a", "48k", out],
-                           check=True)
-        made += 1
-        print("made", out, reading(w["ru"]))
+        jobs = [(w["ru"], os.path.join(ROOT, "audio", f"{wid}.mp3"))]
+        if w.get("ex_ru"):
+            jobs.append((w["ex_ru"], os.path.join(ROOT, "audio", "ex", f"{wid}.mp3")))
+        for text, out in jobs:
+            if os.path.exists(out) and not redo:
+                continue
+            make_mp3(text, out)
+            made += 1
+            print("made", os.path.relpath(out, ROOT), reading(text))
     print(f"{made} files created")
 
 

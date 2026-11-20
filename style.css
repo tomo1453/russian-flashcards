@@ -193,6 +193,15 @@ main {
 }
 .example:empty, .example.hidden { display: none; }
 .ex-ru { font-size: 1.25rem; font-weight: 600; line-height: 1.45; }
+.ex-row { display: flex; align-items: flex-start; gap: 10px; }
+.ex-row .ex-ru { flex: 1; }
+.speak-ex {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  border: none; font-size: 1.25rem;
+  background: #fff; box-shadow: 0 3px 0 color-mix(in srgb, var(--c2) 35%, #fff);
+  display: flex; align-items: center; justify-content: center;
+}
+.speak-ex:active { transform: scale(.9); }
 .ex-ja { font-size: 1rem; color: #6b6280; margin-top: 6px; }
 
 .speak {
@@ -237,7 +246,10 @@ main {
   .known b { font-size: 1.1rem; }
   .sub { font-size: .7rem; }
   .gear { width: 36px; height: 36px; font-size: 1rem; }
-  .back { padding: 72px 18px 18px; }
+  .back { padding: 66px 18px 18px; }
+  .speak { width: 48px; height: 48px; top: 14px; right: 14px; font-size: 1.4rem; }
   .example { padding: 12px 14px; }
   .ex-ru { font-size: 1.1rem; }
+  .ex-row { gap: 6px; }
+  .speak-ex { width: 34px; height: 34px; font-size: 1rem; }
 }
